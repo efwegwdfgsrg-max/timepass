@@ -1,1 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
 
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Hand Motion Particle Lab</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+</head>
+
+<body>
+
+  <canvas id="canvas"></canvas>
+
+  <video
+    id="video"
+    autoplay
+    playsinline
+    muted
+  ></video>
+
+  <div id="interface">
+
+    <div class="brand">
+      HAND MOTION LAB
+    </div>
+
+    <div id="gesture">
+      CAMERA OFF
+    </div>
+
+    <div id="shape">
+      HEXAGON
+    </div>
+
+    <div id="instruction">
+      ✋ Open Palm &nbsp; ✊ Fist &nbsp; 🤏 Pinch
+      <br>
+      ☝️ Index &nbsp; 👋 Swipe
+    </div>
+
+  </div>
+
+  <button id="startButton">
+    START CAMERA
+  </button>
+
+  <div id="message"></div>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
