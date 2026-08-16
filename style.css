@@ -1,1 +1,1618 @@
+"use strict";
+
+/* =====================================================
+   HAND MOTION PARTICLE LAB
+   ===================================================== */
+
+const canvas =
+  document.getElementById("canvas");
+
+const ctx =
+  canvas.getContext("2d");
+
+const video =
+  document.getElementById("video");
+
+const startButton =
+  document.getElementById("startButton");
+
+const gestureLabel =
+  document.getElementById("gesture");
+
+const shapeLabel =
+  document.getElementById("shape");
+
+const message =
+  document.getElementById("message");
+
+
+/* =====================================================
+   CANVAS
+   ===================================================== */
+
+let width =
+  window.innerWidth;
+
+let height =
+  window.innerHeight;
+
+let dpr =
+  Math.min(
+    window.devicePixelRatio || 1,
+    2
+  );
+
+function resize() {
+
+  width =
+    window.innerWidth;
+
+  height =
+    window.innerHeight;
+
+  dpr =
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    );
+
+  canvas.width =
+    width * dpr;
+
+  canvas.height =
+    height * dpr;
+
+  canvas.style.width =
+    width + "px";
+
+  canvas.style.height =
+    height + "px";
+
+  ctx.setTransform(
+    dpr,
+    0,
+    0,
+    dpr,
+    0,
+    0
+  );
+}
+
+window.addEventListener(
+  "resize",
+  resize
+);
+
+resize();
+
+
+/* =====================================================
+   STATE
+   ===================================================== */
+
+let handFound = false;
+
+let handX =
+  width / 2;
+
+let handY =
+  height / 2;
+
+let targetX =
+  width / 2;
+
+let targetY =
+  height / 2;
+
+let scale =
+  1;
+
+let targetScale =
+  1;
+
+let rotation =
+  0;
+
+let currentGesture =
+  "CAMERA OFF";
+
+let currentShape =
+  0;
+
+let lastPalmX =
+  null;
+
+let lastSwipeTime =
+  0;
+
+
+/* =====================================================
+   SHAPES
+   ===================================================== */
+
+const shapes = [
+  "HEXAGON",
+  "STAR",
+  "DIAMOND",
+  "TRIANGLE",
+  "SPIRAL",
+  "RINGS"
+];
+
+const colors = [
+  "#00ffff",
+  "#ff35d5",
+  "#7c5cff",
+  "#00ff9d",
+  "#ffe600",
+  "#ff5a36"
+];
+
+
+/* =====================================================
+   PARTICLES
+   ===================================================== */
+
+const particles = [];
+
+const PARTICLE_COUNT =
+  750;
+
+for (
+  let i = 0;
+  i < PARTICLE_COUNT;
+  i++
+) {
+
+  particles.push({
+
+    angle:
+      Math.random() *
+      Math.PI *
+      2,
+
+    radius:
+      30 +
+      Math.random() *
+      250,
+
+    speed:
+      0.001 +
+      Math.random() *
+      0.008,
+
+    size:
+      0.5 +
+      Math.random() *
+      2.2,
+
+    alpha:
+      0.2 +
+      Math.random() *
+      0.8,
+
+    phase:
+      Math.random() *
+      Math.PI *
+      2,
+
+    color:
+      colors[
+        Math.floor(
+          Math.random() *
+          colors.length
+        )
+      ]
+
+  });
+}
+
+
+/* =====================================================
+   HELPERS
+   ===================================================== */
+
+function lerp(
+  a,
+  b,
+  amount
+) {
+
+  return (
+    a +
+    (b - a) *
+    amount
+  );
+}
+
+
+function distance(
+  a,
+  b
+) {
+
+  const dx =
+    a.x - b.x;
+
+  const dy =
+    a.y - b.y;
+
+  return Math.sqrt(
+    dx * dx +
+    dy * dy
+  );
+}
+
+
+function setGesture(
+  gesture
+) {
+
+  currentGesture =
+    gesture;
+
+  gestureLabel.textContent =
+    gesture;
+
+  if (
+    gesture ===
+    "OPEN PALM"
+  ) {
+
+    targetScale = 1.35;
+
+    currentShape = 0;
+  }
+
+  else if (
+    gesture ===
+    "FIST"
+  ) {
+
+    targetScale = 0.65;
+
+    currentShape = 1;
+  }
+
+  else if (
+    gesture ===
+    "PINCH"
+  ) {
+
+    targetScale = 0.75;
+
+    currentShape = 2;
+  }
+
+  else if (
+    gesture ===
+    "INDEX"
+  ) {
+
+    targetScale = 1;
+
+    currentShape = 3;
+  }
+
+  shapeLabel.textContent =
+    shapes[currentShape];
+}
+
+
+/* =====================================================
+   SWIPE
+   ===================================================== */
+
+function checkSwipe(
+  palmX
+) {
+
+  const now =
+    performance.now();
+
+  if (
+    lastPalmX === null
+  ) {
+
+    lastPalmX =
+      palmX;
+
+    return;
+  }
+
+  const movement =
+    palmX -
+    lastPalmX;
+
+  lastPalmX =
+    palmX;
+
+  if (
+    now -
+    lastSwipeTime <
+    800
+  ) {
+
+    return;
+  }
+
+  if (
+    Math.abs(movement) >
+    0.13
+  ) {
+
+    lastSwipeTime =
+      now;
+
+    if (
+      movement > 0
+    ) {
+
+      currentShape++;
+
+      if (
+        currentShape >=
+        shapes.length
+      ) {
+
+        currentShape = 0;
+      }
+
+      setGesture(
+        "SWIPE RIGHT"
+      );
+    }
+
+    else {
+
+      currentShape--;
+
+      if (
+        currentShape < 0
+      ) {
+
+        currentShape =
+          shapes.length - 1;
+      }
+
+      setGesture(
+        "SWIPE LEFT"
+      );
+    }
+
+    shapeLabel.textContent =
+      shapes[currentShape];
+  }
+}
+
+
+/* =====================================================
+   HAND GESTURE DETECTION
+   ===================================================== */
+
+function detectGesture(
+  landmarks
+) {
+
+  const wrist =
+    landmarks[0];
+
+  const thumb =
+    landmarks[4];
+
+  const index =
+    landmarks[8];
+
+  const middle =
+    landmarks[12];
+
+  const ring =
+    landmarks[16];
+
+  const pinky =
+    landmarks[20];
+
+  const indexPIP =
+    landmarks[6];
+
+  const middlePIP =
+    landmarks[10];
+
+  const ringPIP =
+    landmarks[14];
+
+  const pinkyPIP =
+    landmarks[18];
+
+
+  /* PINCH */
+
+  const pinch =
+    distance(
+      thumb,
+      index
+    );
+
+  if (
+    pinch < 0.065
+  ) {
+
+    setGesture(
+      "PINCH"
+    );
+
+    return;
+  }
+
+
+  /* FINGERS */
+
+  const indexUp =
+    index.y <
+    indexPIP.y;
+
+  const middleUp =
+    middle.y <
+    middlePIP.y;
+
+  const ringUp =
+    ring.y <
+    ringPIP.y;
+
+  const pinkyUp =
+    pinky.y <
+    pinkyPIP.y;
+
+
+  const count =
+    Number(indexUp) +
+    Number(middleUp) +
+    Number(ringUp) +
+    Number(pinkyUp);
+
+
+  /* OPEN PALM */
+
+  if (
+    count >= 4
+  ) {
+
+    setGesture(
+      "OPEN PALM"
+    );
+
+    return;
+  }
+
+
+  /* INDEX */
+
+  if (
+    indexUp &&
+    !middleUp &&
+    !ringUp &&
+    !pinkyUp
+  ) {
+
+    setGesture(
+      "INDEX"
+    );
+
+    return;
+  }
+
+
+  /* FIST */
+
+  if (
+    count === 0
+  ) {
+
+    setGesture(
+      "FIST"
+    );
+
+    return;
+  }
+
+
+  setGesture(
+    "HAND"
+  );
+}
+
+
+/* =====================================================
+   UPDATE HAND POSITION
+   ===================================================== */
+
+function updateHand(
+  landmarks
+) {
+
+  const palm =
+    landmarks[9];
+
+  targetX =
+    (1 - palm.x) *
+    width;
+
+  targetY =
+    palm.y *
+    height;
+
+  handX =
+    lerp(
+      handX,
+      targetX,
+      0.18
+    );
+
+  handY =
+    lerp(
+      handY,
+      targetY,
+      0.18
+    );
+
+
+  /*
+     Palm size controls
+     particle size.
+  */
+
+  const palmWidth =
+    distance(
+      landmarks[5],
+      landmarks[17]
+    );
+
+  if (
+    currentGesture !==
+    "PINCH"
+  ) {
+
+    targetScale =
+      Math.max(
+        0.65,
+        Math.min(
+          1.8,
+          palmWidth * 7
+        )
+      );
+  }
+
+
+  checkSwipe(
+    palm.x
+  );
+}
+
+
+/* =====================================================
+   MEDIAPIPE
+   ===================================================== */
+
+let hands = null;
+
+let cameraStream =
+  null;
+
+
+function setupHands() {
+
+  if (
+    typeof Hands ===
+    "undefined"
+  ) {
+
+    message.textContent =
+      "Hand tracking library failed to load.";
+
+    return false;
+  }
+
+
+  hands =
+    new Hands({
+
+      locateFile:
+        function(file) {
+
+          return (
+            "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" +
+            file
+          );
+        }
+
+    });
+
+
+  hands.setOptions({
+
+    maxNumHands: 1,
+
+    modelComplexity: 1,
+
+    minDetectionConfidence:
+      0.65,
+
+    minTrackingConfidence:
+      0.60
+
+  });
+
+
+  hands.onResults(
+    handleResults
+  );
+
+
+  return true;
+}
+
+
+/* =====================================================
+   RESULTS
+   ===================================================== */
+
+function handleResults(
+  results
+) {
+
+  if (
+    results.multiHandLandmarks &&
+    results.multiHandLandmarks.length
+  ) {
+
+    handFound =
+      true;
+
+    const landmarks =
+      results.multiHandLandmarks[0];
+
+    updateHand(
+      landmarks
+    );
+
+    detectGesture(
+      landmarks
+    );
+
+    message.textContent =
+      "";
+
+  }
+
+  else {
+
+    handFound =
+      false;
+
+    gestureLabel.textContent =
+      "SHOW YOUR HAND";
+
+    message.textContent =
+      "Move your hand in front of the camera";
+  }
+}
+
+
+/* =====================================================
+   CAMERA
+   ===================================================== */
+
+async function startCamera() {
+
+  startButton.disabled =
+    true;
+
+  startButton.textContent =
+    "REQUESTING CAMERA...";
+
+
+  /*
+     This request happens only
+     after user clicks the button.
+  */
+
+  try {
+
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+
+      throw new Error(
+        "Camera API unavailable"
+      );
+    }
+
+
+    cameraStream =
+      await navigator.mediaDevices
+        .getUserMedia({
+
+          video: {
+
+            facingMode:
+              "user",
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 720
+            }
+
+          },
+
+          audio: false
+
+        });
+
+
+    video.srcObject =
+      cameraStream;
+
+
+    await video.play();
+
+
+    startButton.style.display =
+      "none";
+
+
+    gestureLabel.textContent =
+      "SHOW YOUR HAND";
+
+    shapeLabel.textContent =
+      shapes[currentShape];
+
+
+    if (
+      !setupHands()
+    ) {
+
+      return;
+    }
+
+
+    processVideo();
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "CAMERA ERROR:",
+      error
+    );
+
+
+    startButton.disabled =
+      false;
+
+    startButton.textContent =
+      "TRY CAMERA AGAIN";
+
+
+    if (
+      error.name ===
+      "NotAllowedError"
+    ) {
+
+      message.innerHTML =
+        "Camera permission was denied.<br>" +
+        "Allow Camera for this site in Chrome settings, then try again.";
+
+    }
+
+    else if (
+      error.name ===
+      "NotFoundError"
+    ) {
+
+      message.textContent =
+        "No camera was found on this device.";
+
+    }
+
+    else {
+
+      message.textContent =
+        "Camera error: " +
+        error.message;
+    }
+
+  }
+}
+
+
+/* =====================================================
+   PROCESS VIDEO
+   ===================================================== */
+
+let processing =
+  false;
+
+
+async function processVideo() {
+
+  if (
+    video.readyState >=
+    2 &&
+    !processing
+  ) {
+
+    processing =
+      true;
+
+    try {
+
+      await hands.send({
+        image: video
+      });
+
+    }
+
+    catch (error) {
+
+      console.error(
+        "HAND TRACKING ERROR:",
+        error
+      );
+
+    }
+
+    processing =
+      false;
+  }
+
+
+  requestAnimationFrame(
+    processVideo
+  );
+}
+
+
+/* =====================================================
+   BACKGROUND
+   ===================================================== */
+
+function drawBackground() {
+
+  const gradient =
+    ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      0,
+      width / 2,
+      height / 2,
+      Math.max(
+        width,
+        height
+      )
+    );
+
+
+  gradient.addColorStop(
+    0,
+    "#101936"
+  );
+
+  gradient.addColorStop(
+    0.45,
+    "#050817"
+  );
+
+  gradient.addColorStop(
+    1,
+    "#010207"
+  );
+
+
+  ctx.fillStyle =
+    gradient;
+
+  ctx.fillRect(
+    0,
+    0,
+    width,
+    height
+  );
+}
+
+
+/* =====================================================
+   PARTICLES
+   ===================================================== */
+
+function drawParticles(
+  time
+) {
+
+  ctx.save();
+
+  ctx.globalCompositeOperation =
+    "lighter";
+
+
+  for (
+    const particle of particles
+  ) {
+
+    particle.angle +=
+      particle.speed;
+
+
+    const pulse =
+      1 +
+      Math.sin(
+        time * 0.002 +
+        particle.phase
+      ) *
+      0.08;
+
+
+    const radius =
+      particle.radius *
+      scale *
+      pulse;
+
+
+    const x =
+      handX +
+      Math.cos(
+        particle.angle
+      ) *
+      radius;
+
+
+    const y =
+      handY +
+      Math.sin(
+        particle.angle
+      ) *
+      radius;
+
+
+    ctx.globalAlpha =
+      particle.alpha;
+
+
+    ctx.fillStyle =
+      particle.color;
+
+
+    ctx.shadowColor =
+      particle.color;
+
+    ctx.shadowBlur =
+      12;
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+      x,
+      y,
+      particle.size,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  }
+
+
+  ctx.restore();
+}
+
+
+/* =====================================================
+   SHAPE HELPERS
+   ===================================================== */
+
+function drawPolygon(
+  sides,
+  radius,
+  rotation,
+  color
+) {
+
+  ctx.save();
+
+  ctx.translate(
+    handX,
+    handY
+  );
+
+  ctx.rotate(
+    rotation
+  );
+
+
+  ctx.beginPath();
+
+
+  for (
+    let i = 0;
+    i < sides;
+    i++
+  ) {
+
+    const angle =
+      (
+        Math.PI * 2 * i
+      ) /
+      sides;
+
+
+    const x =
+      Math.cos(angle) *
+      radius;
+
+    const y =
+      Math.sin(angle) *
+      radius;
+
+
+    if (
+      i === 0
+    ) {
+
+      ctx.moveTo(
+        x,
+        y
+      );
+
+    }
+
+    else {
+
+      ctx.lineTo(
+        x,
+        y
+      );
+    }
+  }
+
+
+  ctx.closePath();
+
+
+  ctx.strokeStyle =
+    color;
+
+  ctx.lineWidth =
+    4;
+
+  ctx.shadowColor =
+    color;
+
+  ctx.shadowBlur =
+    30;
+
+
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
+function drawStar(
+  radius,
+  rotation,
+  color
+) {
+
+  ctx.save();
+
+  ctx.translate(
+    handX,
+    handY
+  );
+
+  ctx.rotate(
+    rotation
+  );
+
+
+  ctx.beginPath();
+
+
+  for (
+    let i = 0;
+    i < 10;
+    i++
+  ) {
+
+    const angle =
+      -Math.PI / 2 +
+      (
+        Math.PI * 2 * i
+      ) /
+      10;
+
+
+    const r =
+      i % 2 === 0
+        ? radius
+        : radius * 0.42;
+
+
+    const x =
+      Math.cos(angle) *
+      r;
+
+    const y =
+      Math.sin(angle) *
+      r;
+
+
+    if (
+      i === 0
+    ) {
+
+      ctx.moveTo(
+        x,
+        y
+      );
+
+    }
+
+    else {
+
+      ctx.lineTo(
+        x,
+        y
+      );
+    }
+  }
+
+
+  ctx.closePath();
+
+
+  ctx.strokeStyle =
+    color;
+
+  ctx.lineWidth =
+    4;
+
+  ctx.shadowColor =
+    color;
+
+  ctx.shadowBlur =
+    35;
+
+
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
+function drawSpiral(
+  radius,
+  rotation,
+  color
+) {
+
+  ctx.save();
+
+  ctx.translate(
+    handX,
+    handY
+  );
+
+  ctx.rotate(
+    rotation
+  );
+
+
+  ctx.beginPath();
+
+
+  const turns =
+    4;
+
+  const points =
+    180;
+
+
+  for (
+    let i = 0;
+    i < points;
+    i++
+  ) {
+
+    const t =
+      i /
+      (points - 1);
+
+
+    const angle =
+      t *
+      Math.PI *
+      2 *
+      turns;
+
+
+    const r =
+      radius *
+      t;
+
+
+    const x =
+      Math.cos(angle) *
+      r;
+
+    const y =
+      Math.sin(angle) *
+      r;
+
+
+    if (
+      i === 0
+    ) {
+
+      ctx.moveTo(
+        x,
+        y
+      );
+
+    }
+
+    else {
+
+      ctx.lineTo(
+        x,
+        y
+      );
+    }
+  }
+
+
+  ctx.strokeStyle =
+    color;
+
+  ctx.lineWidth =
+    3;
+
+  ctx.shadowColor =
+    color;
+
+  ctx.shadowBlur =
+    30;
+
+
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
+/* =====================================================
+   RINGS
+   ===================================================== */
+
+function drawRings(
+  radius,
+  time
+) {
+
+  ctx.save();
+
+  ctx.translate(
+    handX,
+    handY
+  );
+
+
+  for (
+    let i = 0;
+    i < 5;
+    i++
+  ) {
+
+    const r =
+      radius *
+      (
+        0.45 +
+        i * 0.16
+      );
+
+
+    ctx.save();
+
+    ctx.rotate(
+      time *
+      0.0008 *
+      (i % 2 ? -1 : 1)
+    );
+
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      0,
+      0,
+      r,
+      r * 0.32,
+      0,
+      0,
+      Math.PI * 2
+    );
+
+
+    const color =
+      colors[
+        i %
+        colors.length
+      ];
+
+
+    ctx.strokeStyle =
+      color;
+
+    ctx.lineWidth =
+      2;
+
+    ctx.shadowColor =
+      color;
+
+    ctx.shadowBlur =
+      20;
+
+
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+
+  ctx.restore();
+}
+
+
+/* =====================================================
+   MAIN SHAPE
+   ===================================================== */
+
+function drawShape(
+  time
+) {
+
+  rotation +=
+    0.006;
+
+
+  scale =
+    lerp(
+      scale,
+      targetScale,
+      0.08
+    );
+
+
+  let radius =
+    125 *
+    scale;
+
+
+  const color =
+    colors[
+      currentShape %
+      colors.length
+    ];
+
+
+  if (
+    currentGesture ===
+    "FIST"
+  ) {
+
+    radius =
+      90 *
+      scale;
+  }
+
+
+  if (
+    currentGesture ===
+    "PINCH"
+  ) {
+
+    radius =
+      70 *
+      scale;
+  }
+
+
+  if (
+    currentGesture ===
+    "OPEN PALM"
+  ) {
+
+    radius =
+      145 *
+      scale;
+  }
+
+
+  const pulse =
+    Math.sin(
+      time * 0.004
+    ) *
+    7;
+
+
+  radius +=
+    pulse;
+
+
+  switch (
+    shapes[currentShape]
+  ) {
+
+    case "HEXAGON":
+
+      drawPolygon(
+        6,
+        radius,
+        rotation,
+        color
+      );
+
+      break;
+
+
+    case "STAR":
+
+      drawStar(
+        radius,
+        rotation,
+        color
+      );
+
+      break;
+
+
+    case "DIAMOND":
+
+      drawPolygon(
+        4,
+        radius,
+        rotation +
+        Math.PI / 4,
+        color
+      );
+
+      break;
+
+
+    case "TRIANGLE":
+
+      drawPolygon(
+        3,
+        radius,
+        rotation,
+        color
+      );
+
+      break;
+
+
+    case "SPIRAL":
+
+      drawSpiral(
+        radius,
+        rotation,
+        color
+      );
+
+      break;
+
+
+    case "RINGS":
+
+      drawRings(
+        radius,
+        time
+      );
+
+      break;
+  }
+
+
+  /*
+     Center glow
+  */
+
+  ctx.save();
+
+  ctx.globalAlpha =
+    0.25;
+
+  ctx.fillStyle =
+    color;
+
+  ctx.shadowColor =
+    color;
+
+  ctx.shadowBlur =
+    50;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    handX,
+    handY,
+    7,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  ctx.restore();
+}
+
+
+/* =====================================================
+   MAIN ANIMATION
+   ===================================================== */
+
+function animate(
+  time
+) {
+
+  requestAnimationFrame(
+    animate
+  );
+
+
+  drawBackground();
+
+  drawParticles(
+    time
+  );
+
+  drawShape(
+    time
+  );
+}
+
+
+requestAnimationFrame(
+  animate
+);
+
+
+/* =====================================================
+   START BUTTON
+   ===================================================== */
+
+startButton.addEventListener(
+  "click",
+  startCamera
+);
+
+
+/* =====================================================
+   INITIAL UI
+   ===================================================== */
+
+gestureLabel.textContent =
+  "CAMERA OFF";
+
+shapeLabel.textContent =
+  "HEXAGON";
+
+message.textContent =
+  "Press START CAMERA";
 
